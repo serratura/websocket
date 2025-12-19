@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ sensor }}</title>
+</head>
+<body>
+
+<h2>Sensore: {{ sensor }}</h2>
+
+<h3>Dati grezzi (MQTT)</h3>
+<pre id="raw">In attesa dati...</pre>
+
+<h3>Dati formattati</h3>
+<p id="formatted">---</p>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+.chart-container {
+    width: 600px;
+    height: 300px;
+}
+</style>
+<div class="chart-container">
+    <canvas id="chart"></canvas>
+</div>
+<script>
+const SENSOR = "{{ sensor }}";
+
+const raw = document.getElementById("raw");
+const formatted = document.getElementById("formatted");
+
+const ws = new WebSocket("ws://localhost:8888/ws");
+
+// ----- CHART -----
+const ctx = document.getElementById("chart");
+
+const chart = new Chart(ctx, {
+    type: "line",
+    data: {
+        labels: [],
+        datasets: [{
+            label: SENSOR,
+            data: [],
+            borderWidth: 2,
+            tension: 0.2
+        }]
+    },
+    options: {
+        animation: false,
+        scales: {
+            y: {
+                beginAtZero: false
+            }
+        }
+    }
+});
+
+// ----- WEBSOCKET -----
+ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type !== "sensor") return;
+
+    const data = msg.data;
+    if (data.sensor !== SENSOR) return;
+
+    const time = new Date().toLocaleTimeString();
+
+    raw.textContent = JSON.stringify(data, null, 2);
+    formatted.textContent =
+        `${SENSOR}: ${data.value} ${data.unit} ${time}`;
+
+    // aggiorna grafico
+    chart.data.labels.push(time);
+    chart.data.datasets[0].data.push(data.value);
+
+    // limita a 20 punti
+    if (chart.data.labels.length > 20) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+    }
+
+    chart.update();
+};
+</script>
+</body>
+</html>
